@@ -2,6 +2,10 @@
 require 'db.php';
 require 'check_admin.php';
 
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 $id = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
 if ($id <= 0) {
     header("Location: admin_services.php");
@@ -17,6 +21,9 @@ if (!$service) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $message = '<div class="alert alert-danger">Ошибка CSRF. Обновите страницу и попробуйте снова.</div>';
+    } else {
     $title = trim($_POST['title'] ?? '');
     $price = $_POST['price'] ?? 0;
     $desc = trim($_POST['description'] ?? '');
@@ -30,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$title, $desc, $price ?: 0, $img ?: null, $id]);
         header("Location: admin_services.php?updated=1");
         exit;
+    }
     }
 }
 ?>
@@ -47,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?= $message ?? '' ?>
     <form method="POST" class="card p-4">
         <input type="hidden" name="id" value="<?= (int)$id ?>">
+        <input type="hidden" name="csrf_token" value="<?= h($_SESSION['csrf_token']) ?>">
         <div class="mb-3">
             <label class="form-label">Название</label>
             <input type="text" name="title" class="form-control" value="<?= h($service['title']) ?>" required>

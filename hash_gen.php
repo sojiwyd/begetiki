@@ -1,10 +1,4 @@
 <?php
-/**
- * Генератор хеша пароля для ручного создания пользователя в phpMyAdmin.
- * Использование: откройте в браузере hash_gen.php?pass=ваш_пароль
- * Скопируйте хеш и вставьте в INSERT: INSERT INTO users (email, password_hash, role) VALUES ('admin@mail.ru', 'СКОПИРОВАННЫЙ_ХЕШ', 'admin');
- * После использования УДАЛИТЕ этот файл с сервера (безопасность).
- */
 $pass = $_GET['pass'] ?? 'admin123';
 
 if (strlen($pass) < 6) {

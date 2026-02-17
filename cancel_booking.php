@@ -23,11 +23,6 @@ if ($booking_id <= 0) {
     die("Неверный заказ. <a href='profile.php'>Вернуться</a>");
 }
 
-// LOGIC CHECK + SECURITY:
-// Удаляем запись ТОЛЬКО если:
-// 1. Она принадлежит этому пользователю (user_id = ?)
-// 2. Время записи (appointment_date) > NOW() + 24 часа — нельзя отменить, если осталось < 24 ч
-// 3. Статус 'new' — обработанные заказы отменить нельзя
 $sql = "DELETE FROM orders 
         WHERE id = ? 
         AND user_id = ? 

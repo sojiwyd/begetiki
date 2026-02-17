@@ -2,7 +2,6 @@
 session_start();
 require 'db.php';
 
-// Поиск по названию услуги (GET + LIKE)
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $limit = 10;
 $offset = ($page - 1) * $limit;
@@ -18,7 +17,6 @@ if (!empty($_GET['q'])) {
 
 $where_sql = count($where_clauses) > 0 ? " WHERE " . implode(" AND ", $where_clauses) : "";
 
-// Общее количество для пагинации
 $count_sql = "SELECT COUNT(*) FROM services" . $where_sql;
 if ($params) {
     $stmt = $pdo->prepare($count_sql);
@@ -58,6 +56,7 @@ $products = $stmt->fetchAll();
             <a href="logout.php" class="btn btn-dark btn-sm">Выйти</a>
         <?php else: ?>
             <a href="login.php" class="btn btn-primary btn-sm">Войти</a>
+            <a href="register.php" class="btn btn-outline-primary btn-sm">Регистрация</a>
         <?php endif; ?>
     </div>
 </nav>
@@ -86,7 +85,6 @@ $products = $stmt->fetchAll();
                 <div class="card h-100">
                     <img src="<?= h($p['image_url'] ?: 'https://via.placeholder.com/300') ?>" class="card-img-top" alt="" style="height: 200px; object-fit: cover;">
                     <div class="card-body">
-                        <!-- Защита от XSS: вывод через h() -->
                         <h5 class="card-title"><?= h($p['title']) ?></h5>
                         <p class="card-text"><?= h($p['description']) ?></p>
                         <p class="text-primary fw-bold"><?= h($p['price']) ?> ₽</p>

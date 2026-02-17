@@ -4,6 +4,9 @@ require 'db.php';
 require 'check_admin.php';
 
 $message = "";
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 
 $tables = [];
 $stmt = $pdo->query("SHOW TABLES");
@@ -12,8 +15,12 @@ while ($row = $stmt->fetch(PDO::FETCH_NUM)) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
+        die("CSRF Attack blocked. <a href='admin_seeder.php'>Вернуться</a>");
+    }
+
     $tableName = $_POST['table_name'];
-    $count = min(100, max(1, (int)$_POST['count']));
+    $count = min(1000, max(1, (int)$_POST['count']));
 
     if (!in_array($tableName, $tables)) {
         die("Ошибка: Таблица не найдена. <a href='admin_seeder.php'>Вернуться</a>");
@@ -94,6 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <form method="POST">
+                <input type="hidden" name="csrf_token" value="<?= h($_SESSION['csrf_token']) ?>">
                 <div class="mb-3">
                     <label class="form-label">Таблица для наполнения:</label>
                     <select name="table_name" class="form-select">
@@ -106,7 +114,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <div class="mb-3">
                     <label class="form-label">Сколько записей добавить?</label>
-                    <input type="number" name="count" class="form-control" value="50" min="1" max="100">
+                    <input type="number" name="count" class="form-control" value="100" min="1" max="1000">
+                    <small class="text-muted">Для стресс-теста: 100, 500 или 1000.</small>
                 </div>
 
                 <div class="alert alert-warning">

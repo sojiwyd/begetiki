@@ -13,12 +13,12 @@ if (empty($_SESSION['csrf_token'])) {
 
 $user_id = (int)$_SESSION['user_id'];
 
-// БЕЗОПАСНОСТЬ (Anti-IDOR): только заказы текущего пользователя
 $sql = "
     SELECT 
         orders.id AS order_id,
         orders.created_at,
         orders.appointment_date,
+        orders.damage_photo_url,
         orders.status,
         services.title,
         services.price,
@@ -75,6 +75,7 @@ $my_orders = $stmt->fetchAll();
                                         <th>Дата визита</th>
                                         <th>Услуга</th>
                                         <th>Цена</th>
+                                        <th>Фото</th>
                                         <th>Статус</th>
                                         <th></th>
                                     </tr>
@@ -87,6 +88,15 @@ $my_orders = $stmt->fetchAll();
                                             <td><?= !empty($order['appointment_date']) ? date('d.m.Y H:i', strtotime($order['appointment_date'])) : '—' ?></td>
                                             <td><strong><?= h($order['title']) ?></strong></td>
                                             <td><?= number_format((float)$order['price'], 0, '', ' ') ?> ₽</td>
+                                            <td>
+                                                <?php if (!empty($order['damage_photo_url'])): ?>
+                                                    <a href="<?= h($order['damage_photo_url']) ?>" target="_blank" class="text-decoration-none">
+                                                        <img src="<?= h($order['damage_photo_url']) ?>" alt="Фото" style="width: 48px; height: 48px; object-fit: cover; border-radius: 6px;">
+                                                    </a>
+                                                <?php else: ?>
+                                                    <span class="text-muted">—</span>
+                                                <?php endif; ?>
+                                            </td>
                                             <td>
                                                 <?php
                                                 $status_color = 'secondary';

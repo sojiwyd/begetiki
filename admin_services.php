@@ -6,7 +6,32 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-$stmt = $pdo->query("SELECT * FROM services ORDER BY id DESC");
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$limit = 10;
+$offset = ($page - 1) * $limit;
+$q = trim($_GET['q'] ?? '');
+
+$where_sql = '';
+$params = [];
+if ($q !== '') {
+    $where_sql = " WHERE title LIKE ?";
+    $params[] = '%' . $q . '%';
+}
+
+$count_sql = "SELECT COUNT(*) FROM services" . $where_sql;
+$count_stmt = $pdo->prepare($count_sql);
+$count_stmt->execute($params);
+$total_rows = (int)$count_stmt->fetchColumn();
+$total_pages = max(1, (int)ceil($total_rows / $limit));
+
+if ($page > $total_pages) {
+    $page = $total_pages;
+    $offset = ($page - 1) * $limit;
+}
+
+$sql = "SELECT * FROM services" . $where_sql . " ORDER BY id DESC LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 $services = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
@@ -25,6 +50,15 @@ $services = $stmt->fetchAll();
     <a href="admin_panel.php" class="btn btn-secondary mb-2">← В админку</a>
     <a href="add_item.php" class="btn btn-success mb-2">+ Добавить услугу</a>
     <a href="index.php" class="btn btn-outline-primary mb-2">На главную</a>
+
+    <form method="GET" class="row g-2 mt-2 mb-2">
+        <div class="col-md-9">
+            <input type="text" name="q" class="form-control" value="<?= h($q) ?>" placeholder="Поиск услуги по названию...">
+        </div>
+        <div class="col-md-3 d-grid">
+            <button type="submit" class="btn btn-primary">Найти</button>
+        </div>
+    </form>
 
     <table class="table table-bordered mt-3">
         <thead class="table-light">
@@ -56,6 +90,23 @@ $services = $stmt->fetchAll();
             <?php endif; ?>
         </tbody>
     </table>
+
+    <?php if ($total_pages > 1): ?>
+    <nav>
+        <ul class="pagination">
+            <?php
+            $query_params = $_GET;
+            for ($i = 1; $i <= $total_pages; $i++):
+                $query_params['page'] = $i;
+                $url = 'admin_services.php?' . http_build_query($query_params);
+            ?>
+            <li class="page-item <?= ($i === $page) ? 'active' : '' ?>">
+                <a class="page-link" href="<?= h($url) ?>"><?= $i ?></a>
+            </li>
+            <?php endfor; ?>
+        </ul>
+    </nav>
+    <?php endif; ?>
 </div>
 </body>
 </html>

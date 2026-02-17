@@ -14,7 +14,6 @@ if ($order_id <= 0) {
     die("Заказ не найден или у вас нет прав на его просмотр. <a href='profile.php'>В мои заказы</a>");
 }
 
-// ПРОВЕРКА ВЛАДЕЛЬЦА (Anti-IDOR): заказ с таким ID И принадлежащий этому пользователю
 $stmt = $pdo->prepare("
     SELECT orders.*, services.title, services.price, services.description, services.image_url
     FROM orders
@@ -25,7 +24,6 @@ $stmt->execute([$order_id, $user_id]);
 $order = $stmt->fetch();
 
 if (!$order) {
-    // Не пишем «чужой заказ» — защита от перебора (User Enumeration)
     die("Заказ не найден или у вас нет прав на его просмотр. <a href='profile.php'>В мои заказы</a>");
 }
 ?>

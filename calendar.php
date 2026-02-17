@@ -10,7 +10,6 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
 $day_start = $date . ' 09:00:00';
 $day_end = $date . ' 18:00:00';
 
-// Занятые слоты на эту дату (status = new или processing)
 $stmt = $pdo->prepare("
     SELECT DATE_FORMAT(appointment_date, '%H:%i') as slot
     FROM orders
@@ -18,13 +17,12 @@ $stmt = $pdo->prepare("
     AND status IN ('new', 'processing')
     AND appointment_date IS NOT NULL
 ");
-$stmt->execute([$day_start, $date . ' 23:59:59']);
+$stmt->execute([$day_start, $day_end]);
 $busy_slots = [];
 while ($row = $stmt->fetch()) {
     $busy_slots[$row['slot']] = true;
 }
 
-// Слоты по 30 минут с 9:00 до 18:00
 $slots = [];
 for ($h = 9; $h < 18; $h++) {
     foreach ([0, 30] as $m) {
@@ -48,16 +46,16 @@ for ($h = 9; $h < 18; $h++) {
             <small class="text-muted">Красный — занято, зелёный — свободно</small>
         </div>
         <div class="card-body">
-            <form method="GET" class="mb-4 row g-2">
+            <form method="GET" class="mb-4 row g-2" id="calendarFilterForm">
                 <div class="col-auto">
-                    <input type="date" name="date" class="form-control" value="<?= h($date) ?>">
+                    <input type="date" id="calendarDateInput" name="date" class="form-control" value="<?= h($date) ?>">
                 </div>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-primary">Показать</button>
                 </div>
             </form>
 
-            <div class="row g-2">
+            <div class="row g-2" id="slotsGrid">
                 <?php foreach ($slots as $slot): ?>
                 <div class="col-6 col-md-4 col-lg-3">
                     <div class="p-2 rounded text-center text-white <?= !empty($busy_slots[$slot]) ? 'bg-danger' : 'bg-success' ?>">
@@ -70,5 +68,57 @@ for ($h = 9; $h < 18; $h++) {
     </div>
     <a href="index.php" class="btn btn-outline-secondary mt-3">← На главную</a>
 </div>
+<script>
+(function () {
+    const form = document.getElementById('calendarFilterForm');
+    const dateInput = document.getElementById('calendarDateInput');
+    const grid = document.getElementById('slotsGrid');
+
+    if (!form || !dateInput || !grid) return;
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function renderSlots(slots) {
+        const html = slots.map((slot) => {
+            const busy = Boolean(slot.is_busy);
+            const className = busy ? 'bg-danger' : 'bg-success';
+            const label = busy ? 'Занято' : 'Свободно';
+            return `
+                <div class="col-6 col-md-4 col-lg-3">
+                    <div class="p-2 rounded text-center text-white ${className}">
+                        ${escapeHtml(slot.time)} — ${label}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        grid.innerHTML = html || '<div class="text-muted">Нет данных.</div>';
+    }
+
+    async function loadSlots() {
+        const date = dateInput.value;
+        if (!date) return;
+        const response = await fetch('api/get_slots.php?date=' + encodeURIComponent(date));
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!data || !Array.isArray(data.slots)) return;
+        renderSlots(data.slots);
+    }
+
+    form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        loadSlots();
+    });
+
+    loadSlots();
+})();
+</script>
 </body>
 </html>

@@ -15,7 +15,6 @@ $message = '';
 $success = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Проверка CSRF
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         $message = 'Ошибка безопасности: неверный CSRF-токен. Запрос отклонён.';
     } else {

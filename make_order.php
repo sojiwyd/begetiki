@@ -5,6 +5,9 @@ require 'db.php';
 if (!isset($_SESSION['user_id'])) {
     die("Сначала войдите в систему! <a href='login.php'>Вход</a>");
 }
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 
 $service_id = (int)($_GET['id'] ?? $_POST['service_id'] ?? 0);
 $user_id = (int)$_SESSION['user_id'];
@@ -21,15 +24,17 @@ if (!$service) {
     die("Ошибка: Услуга не найдена! <a href='index.php'>Вернуться</a>");
 }
 
-// Слоты каждые 30 минут (9:00 - 17:00)
 $slots = [];
 for ($h = 9; $h < 18; $h++) {
     $slots[] = sprintf('%02d:00', $h);
     if ($h < 17) $slots[] = sprintf('%02d:30', $h);
 }
 
-// POST — создание заказа
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        die("Ошибка CSRF. <a href='index.php'>Вернуться</a>");
+    }
+
     $appointment_date = trim($_POST['appointment_date'] ?? '');
     $appointment_time = trim($_POST['appointment_time'] ?? '');
     if (empty($appointment_date) || empty($appointment_time) || !in_array($appointment_time, $slots)) {
@@ -40,6 +45,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dt = DateTime::createFromFormat('Y-m-d H:i:s', $appointment_str);
     if (!$dt || $dt <= new DateTime()) {
         die("Укажите будущую дату и время. <a href='make_order.php?id=" . $service_id . "'>Назад</a>");
+    }
+
+    $busy = $pdo->prepare("
+        SELECT id FROM orders
+        WHERE appointment_date = ?
+        AND status IN ('new', 'processing')
+        LIMIT 1
+    ");
+    $busy->execute([$appointment_str]);
+    if ($busy->fetch()) {
+        die("Этот слот уже занят. Выберите другое время. <a href='make_order.php?id=" . $service_id . "'>Назад</a>");
     }
 
     $recent = $pdo->prepare("
@@ -53,7 +69,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("Вы уже записывались на эту услугу недавно. Подождите 5 минут. <a href='index.php'>Вернуться</a>");
     }
 
-    // Загрузка фото повреждения
     $damage_photo_url = null;
     $uploadDir = __DIR__ . '/uploads/';
     $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
@@ -106,6 +121,7 @@ $min_date = (new DateTime())->format('Y-m-d');
             <p class="text-muted"><?= number_format((float)$service['price'], 0, '', ' ') ?> ₽</p>
             <form method="POST" action="make_order.php" enctype="multipart/form-data">
                 <input type="hidden" name="service_id" value="<?= (int)$service_id ?>">
+                <input type="hidden" name="csrf_token" value="<?= h($_SESSION['csrf_token']) ?>">
                 <div class="mb-3">
                     <label for="appointment_date" class="form-label">Дата визита</label>
                     <input type="date" class="form-control" id="appointment_date" name="appointment_date" required min="<?= h($min_date) ?>">

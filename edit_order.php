@@ -6,6 +6,9 @@ if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit;
 }
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 
 $order_id = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
 $user_id = (int)$_SESSION['user_id'];
@@ -64,10 +67,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $current_date = $appointment_date;
             $current_time = $appointment_time;
         } else {
-            $stmt = $pdo->prepare("UPDATE orders SET appointment_date = ? WHERE id = ? AND user_id = ?");
-            $stmt->execute([$appointment_str, $order_id, $user_id]);
-            header("Location: profile.php?updated=1");
-            exit;
+            $busy = $pdo->prepare("
+                SELECT id FROM orders
+                WHERE appointment_date = ?
+                AND status IN ('new', 'processing')
+                AND id <> ?
+                LIMIT 1
+            ");
+            $busy->execute([$appointment_str, $order_id]);
+            if ($busy->fetch()) {
+                $message = '<div class="alert alert-danger">Этот слот уже занят. Выберите другое время.</div>';
+                $current_date = $appointment_date;
+                $current_time = $appointment_time;
+            } else {
+                $stmt = $pdo->prepare("UPDATE orders SET appointment_date = ? WHERE id = ? AND user_id = ?");
+                $stmt->execute([$appointment_str, $order_id, $user_id]);
+                header("Location: profile.php?updated=1");
+                exit;
+            }
         }
     }
 }
