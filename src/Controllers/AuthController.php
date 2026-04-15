@@ -1,101 +1,81 @@
 <?php
-
-require_once __DIR__ . '/../Models/User.php';
+declare(strict_types=1);
 
 class AuthController
 {
-    public function register(): array
+    public function login(): void
     {
-        $state = [
-            'success' => false,
-            'message' => '',
-            'old' => ['email' => ''],
-        ];
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            Csrf::requireValid($_POST['csrf_token'] ?? null);
 
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            return $state;
+            $email = trim((string)($_POST['email'] ?? ''));
+            $password = (string)($_POST['password'] ?? '');
+
+            if ($email === '' || $password === '') {
+                $error = 'Введите email и пароль.';
+            } else {
+                $userModel = new User();
+                $user = $userModel->findByEmail($email);
+                if ($user && password_verify($password, $user['password_hash'])) {
+                    Auth::login($user);
+                    if (($user['role'] ?? 'client') === 'admin') {
+                        redirect(base_url('index.php?page=admin&action=dashboard'));
+                    }
+                    redirect(base_url('index.php'));
+                }
+                $error = 'Неверный логин или пароль.';
+            }
         }
 
-        $email = trim($_POST['email'] ?? '');
-        $password = $_POST['password'] ?? '';
-        $passwordConfirm = $_POST['password_confirm'] ?? ($_POST['password2'] ?? '');
-        $state['old']['email'] = $email;
-
-        if ($email === '' || $password === '') {
-            $state['message'] = 'Заполните email и пароль.';
-            return $state;
-        }
-
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $state['message'] = 'Некорректный email.';
-            return $state;
-        }
-
-        if (strlen($password) < 6) {
-            $state['message'] = 'Пароль не менее 6 символов.';
-            return $state;
-        }
-
-        if ($password !== $passwordConfirm) {
-            $state['message'] = 'Пароли не совпадают.';
-            return $state;
-        }
-
-        $userModel = new User();
-        if ($userModel->findByEmail($email)) {
-            $state['message'] = 'Такой email уже зарегистрирован.';
-            return $state;
-        }
-
-        try {
-            $userModel->create($email, $password, 'client');
-            $state['success'] = true;
-            $state['message'] = 'Регистрация успешна. <a href="login.php">Войти</a>';
-        } catch (PDOException $e) {
-            $state['message'] = 'Ошибка БД. Попробуйте позже.';
-        }
-
-        return $state;
+        View::render('auth/login', [
+            'error' => $error ?? flash('error'),
+            'old' => ['email' => $email ?? ''],
+        ]);
     }
 
-    public function login(): array
+    public function register(): void
     {
-        $state = [
-            'error' => '',
-            'old' => ['email' => ''],
-        ];
+        $success = false;
+        $message = '';
+        $email = '';
 
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            return $state;
-        }
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            Csrf::requireValid($_POST['csrf_token'] ?? null);
 
-        $email = trim($_POST['email'] ?? '');
-        $password = $_POST['password'] ?? '';
-        $state['old']['email'] = $email;
+            $email = trim((string)($_POST['email'] ?? ''));
+            $password = (string)($_POST['password'] ?? '');
+            $passwordConfirm = (string)($_POST['password_confirm'] ?? '');
 
-        if ($email === '' || $password === '') {
-            $state['error'] = 'Введите email и пароль.';
-            return $state;
-        }
-
-        $userModel = new User();
-        $user = $userModel->findByEmail($email);
-
-        if ($user && password_verify($password, $user['password_hash'])) {
-            session_regenerate_id(true);
-            $_SESSION['user_id'] = (int)$user['id'];
-            $_SESSION['user_role'] = $user['role'];
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-
-            if ($user['role'] === 'admin') {
-                header('Location: admin_panel.php');
+            if ($email === '' || $password === '') {
+                $message = 'Заполните email и пароль.';
+            } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $message = 'Некорректный email.';
+            } elseif (strlen($password) < 6) {
+                $message = 'Пароль должен быть не короче 6 символов.';
+            } elseif ($password !== $passwordConfirm) {
+                $message = 'Пароли не совпадают.';
             } else {
-                header('Location: index.php');
+                $userModel = new User();
+                if ($userModel->findByEmail($email)) {
+                    $message = 'Такой email уже зарегистрирован.';
+                } else {
+                    $userModel->create($email, $password, 'client');
+                    $success = true;
+                    $message = 'Регистрация успешна. Теперь можно войти.';
+                }
             }
-            exit;
         }
 
-        $state['error'] = 'Неверный логин или пароль';
-        return $state;
+        View::render('auth/register', [
+            'success' => $success,
+            'message' => $message,
+            'old' => ['email' => $email],
+        ]);
+    }
+
+    public function logout(): void
+    {
+        Auth::logout();
+        redirect(base_url('index.php'));
     }
 }
